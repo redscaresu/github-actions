@@ -1,8 +1,13 @@
 // Command fixture is the Go code the security.yml gates are dogfooded on.
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"golang.org/x/text/language"
+)
 
 func main() {
-	fmt.Println("fixture")
+	tags, _, _ := language.ParseAcceptLanguage("en-GB")
+	fmt.Println("fixture", tags)
 }
