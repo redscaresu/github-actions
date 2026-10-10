@@ -1,0 +1,33 @@
+name: Security
+
+# Reusable security gates. A caller job must grant the union of the job
+# permissions below; each job narrows back to what it needs.
+on:
+  workflow_call:
+    inputs:
+      zizmor:
+        description: Run the zizmor audit of GitHub Actions workflows.
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  zizmor:
+    if: inputs.zizmor && (github.event_name == 'push' || github.event_name == 'pull_request')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout of a private repo needs it
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          # Dependabot does not bump `version:`; bump it by hand.
+          version: 1.30.1
+          # Fail the job on findings and upload no SARIF (needs code scanning).
+          advanced-security: false
