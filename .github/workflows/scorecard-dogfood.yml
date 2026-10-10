@@ -1,0 +1,17 @@
+name: Scorecard dogfood
+
+# Calls the reusable scorecard.yml on push to main only, so no pull_request
+# run ever requests an id-token.
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  security:
+    name: security
+    permissions:
+      contents: read
+      id-token: write # scorecard.yml publishes to the OpenSSF API
+    uses: $/.github/workflows/scorecard.yml
