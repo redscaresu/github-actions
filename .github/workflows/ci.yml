@@ -12,4 +12,13 @@ jobs:
     name: security
     permissions:
       contents: read
+      security-events: write # the codeql job uploads SARIF
     uses: $/.github/workflows/security.yml
+
+  security-codeql-off:
+    permissions:
+      contents: read
+      security-events: write # a caller covers every called job, the skipped codeql included
+    uses: $/.github/workflows/security.yml
+    with:
+      codeql: false

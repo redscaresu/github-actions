@@ -17,6 +17,14 @@ on:
         description: Run govulncheck over the Go module at the repo root (skipped without a go.mod).
         type: boolean
         default: true
+      codeql:
+        description: Run CodeQL and upload its results to code scanning (needs code scanning on the repo).
+        type: boolean
+        default: true
+      codeql-languages:
+        description: The one CodeQL language to analyse.
+        type: string
+        default: go
 
 permissions: {}
 
@@ -93,3 +101,36 @@ jobs:
         # one); the module proxy and sumdb verify it. Dependabot does not bump
         # it; bump it by hand.
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
+  codeql:
+    if: inputs.codeql && (github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout of a private repo needs it
+      security-events: write # upload the analysis SARIF to code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        if: hashFiles('go.mod') != ''
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false # the fixture has no go.sum for the cache key
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ inputs.codeql-languages }}
+          # autobuild builds the code itself; no separate build step.
+          build-mode: autobuild
+
+      - name: Perform CodeQL Analysis
+        # Uploads and does not fail on alerts; the code-scanning check `CodeQL`
+        # is what blocks a PR, at the repo's Check Failure severity.
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: /language:${{ inputs.codeql-languages }}
