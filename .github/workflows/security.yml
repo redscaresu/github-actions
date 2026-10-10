@@ -13,6 +13,10 @@ on:
         description: Run the gitleaks secret scan over the full history of the checked-out commit.
         type: boolean
         default: true
+      govulncheck:
+        description: Run govulncheck over the Go module at the repo root (skipped without a go.mod).
+        type: boolean
+        default: true
 
 permissions: {}
 
@@ -63,3 +67,29 @@ jobs:
           # on one unmerged branch would fail every other run. "--": a file
           # named HEAD makes git log fail, which gitleaks reports as no leaks.
           "$RUNNER_TEMP"/gitleaks detect --redact -v --no-banner --log-opts="HEAD --" --source=.
+
+  govulncheck:
+    if: inputs.govulncheck && (github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout of a private repo needs it
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        if: hashFiles('go.mod') != ''
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: true # newest release matching go.mod, not a runner-cached one
+          cache: false # the fixture has no go.sum for the cache key
+
+      - name: Run govulncheck
+        if: hashFiles('go.mod') != ''
+        # A pinned version, not the upstream action (it installs an unpinned
+        # one); the module proxy and sumdb verify it. Dependabot does not bump
+        # it; bump it by hand.
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
