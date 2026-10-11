@@ -1,0 +1,47 @@
+name: Stale pins
+
+# Dependabot cannot see the gitleaks binary or the govulncheck `go run`
+# version in security.yml. This fails weekly when either is behind a release
+# at least 7 days old (the same cooldown as dependabot.yml); a failed
+# scheduled run emails the owner.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  stale-pins:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compare pins with latest releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f=.github/workflows/security.yml
+          gitleaks_pin=$(grep -oE 'gitleaks/releases/download/v[0-9.]+' "$f" | head -1 | sed 's|.*/v|v|')
+          govuln_pin=$(grep -oE 'govulncheck@v[0-9.]+' "$f" | head -1 | sed 's|.*@||')
+          read -r gitleaks_latest gitleaks_date < <(gh api repos/gitleaks/gitleaks/releases/latest --jq '.tag_name+" "+.published_at')
+          read -r govuln_latest govuln_date < <(curl -sSf https://proxy.golang.org/golang.org/x/vuln/@latest | jq -r '.Version+" "+.Time')
+          for v in "$gitleaks_pin" "$govuln_pin" "$gitleaks_latest" "$govuln_latest" "$gitleaks_date" "$govuln_date"; do
+            [ -n "$v" ] && [ "$v" != null ] || { echo "::error::could not read a version"; exit 1; }
+          done
+          cutoff=$(date -u -d '7 days ago' +%s)
+          stale=0
+          check() { # name pin latest released_at
+            if [ "$2" = "$3" ]; then echo "$1 $2 is current"
+            elif [ "$(date -u -d "$4" +%s)" -gt "$cutoff" ]; then echo "$1 $3 released $4, inside the 7-day cooldown"
+            else echo "::error::$1 pinned at $2, latest is $3 (released $4)"; stale=1; fi
+          }
+          check gitleaks "$gitleaks_pin" "$gitleaks_latest" "$gitleaks_date"
+          check govulncheck "$govuln_pin" "$govuln_latest" "$govuln_date"
+          exit "$stale"
