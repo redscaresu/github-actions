@@ -1,10 +1,13 @@
 name: Scorecard dogfood
 
-# Calls the reusable scorecard.yml on push to main only, so no pull_request
-# run ever requests an id-token.
+# Calls the reusable scorecard.yml on push to main and weekly, never on
+# pull_request, so no PR run ever requests an id-token. The weekly run keeps
+# the published score fresh while the bundle is unchanged.
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "41 5 * * 1"
 
 permissions: {}
 
